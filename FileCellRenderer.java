@@ -1,34 +1,51 @@
 import javax.swing.*;
 import java.awt.*;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
 public class FileCellRenderer extends DefaultListCellRenderer {
     private final Map<String, ImageIcon> iconMap = new HashMap<>();
-    private static final int ICON_SIZE = 64; // Tamaño uniforme para todos los íconos (64x64)
+    private static final int ICON_SIZE = 64;
 
     public FileCellRenderer() {
-        // Carga los íconos originales
-        ImageIcon imgIcon = new ImageIcon(getClass().getResource("icons/image.png"));
-        ImageIcon pdfIcon = new ImageIcon(getClass().getResource("icons/pdf.png"));
-        ImageIcon wordIcon = new ImageIcon(getClass().getResource("icons/word.png"));
-        ImageIcon fileIcon = new ImageIcon(getClass().getResource("icons/file.png"));
+        // Carga y escala los íconos de forma más robusta
+        ImageIcon imgIcon = loadAndScaleIcon("icons/image.png", "Imagen");
+        ImageIcon pdfIcon = loadAndScaleIcon("icons/pdf.png", "PDF");
+        ImageIcon wordIcon = loadAndScaleIcon("icons/word.png", "Word");
+        ImageIcon videoIcon = loadAndScaleIcon("icons/video.png", "Video"); // Ícono nuevo
+        ImageIcon fileIcon = loadAndScaleIcon("icons/file.png", "Archivo");
+
+        // Mapeo de extensiones de imagen
+        iconMap.put("jpg", imgIcon);
+        iconMap.put("jpeg", imgIcon);
+        iconMap.put("png", imgIcon);
+        iconMap.put("gif", imgIcon);
+
+        // Mapeo de extensiones de documentos
+        iconMap.put("pdf", pdfIcon);
+        iconMap.put("doc", wordIcon);
+        iconMap.put("docx", wordIcon);
+
+        // Mapeo de extensiones de video (NUEVO)
+        iconMap.put("mp4", videoIcon);
+        iconMap.put("webm", videoIcon);
+        iconMap.put("mkv", videoIcon);
+        iconMap.put("avi", videoIcon);
         
-        // Escala los íconos al tamaño deseado y los guarda
-        iconMap.put("jpg", scaleIcon(imgIcon));
-        iconMap.put("jpeg", scaleIcon(imgIcon));
-        iconMap.put("png", scaleIcon(imgIcon));
-        iconMap.put("gif", scaleIcon(imgIcon));
-        iconMap.put("pdf", scaleIcon(pdfIcon));
-        iconMap.put("doc", scaleIcon(wordIcon));
-        iconMap.put("docx", scaleIcon(wordIcon));
-        iconMap.put("other", scaleIcon(fileIcon));
+        iconMap.put("other", fileIcon);
     }
 
-    // Método para escalar los íconos a un tamaño estándar
-    private ImageIcon scaleIcon(ImageIcon icon) {
-        Image img = icon.getImage();
-        Image scaledImg = img.getScaledInstance(ICON_SIZE, ICON_SIZE, Image.SCALE_SMOOTH);
+    private ImageIcon loadAndScaleIcon(String path, String description) {
+        URL resourceUrl = getClass().getResource(path);
+        if (resourceUrl == null) {
+            // Si no se encuentra el ícono, imprime un error claro en la consola.
+            System.err.println("ADVERTENCIA: No se pudo encontrar el ícono en la ruta: " + path);
+            System.err.println("Asegúrate de que la carpeta 'icons' exista y esté en el lugar correcto.");
+            return null; // Devolver null para manejarlo después
+        }
+        ImageIcon icon = new ImageIcon(resourceUrl);
+        Image scaledImg = icon.getImage().getScaledInstance(ICON_SIZE, ICON_SIZE, Image.SCALE_SMOOTH);
         return new ImageIcon(scaledImg);
     }
 
@@ -40,25 +57,21 @@ public class FileCellRenderer extends DefaultListCellRenderer {
         String extension = getFileExtension(fileName);
         
         ImageIcon icon = iconMap.getOrDefault(extension, iconMap.get("other"));
+        if (icon == null) {
+            // Si un ícono falló al cargar, usa el de 'otro' como respaldo.
+            icon = iconMap.get("other");
+        }
         label.setIcon(icon);
         
-        // --- AJUSTES PARA LA VISTA EN CUADRÍCULA ---
-        // Pone el texto debajo del ícono
         label.setHorizontalTextPosition(JLabel.CENTER);
         label.setVerticalTextPosition(JLabel.BOTTOM);
-        
-        // Asegura que el texto no sea demasiado largo para la celda
-        // Usamos HTML para permitir que el texto se divida en varias líneas si es necesario
         label.setText("<html><center>" + getShortenedFileName(fileName) + "</center></html>");
-        
-        // Alineación y tamaño de la celda
         label.setHorizontalAlignment(JLabel.CENTER);
-        label.setPreferredSize(new Dimension(100, 100)); // Tamaño fijo para cada celda
+        label.setPreferredSize(new Dimension(100, 100));
         
         return label;
     }
     
-    // Acorta el nombre del archivo si es muy largo
     private String getShortenedFileName(String fileName) {
         if (fileName.length() > 20) {
             return fileName.substring(0, 17) + "...";

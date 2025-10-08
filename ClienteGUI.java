@@ -1,22 +1,23 @@
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.IOException; // <<--- 1. SE AÑADE LA IMPORTACIÓN FALTANTE
 import java.util.List;
 import javax.imageio.ImageIO;
 
 public class ClienteGUI extends JFrame {
     private final Cliente cliente;
 
-    // Componentes de la GUI
+    // ... (declaraciones de componentes sin cambios)
     private JTextField hostTextField;
     private JButton conectarButton, desconectarButton;
     private JList<String> listaArchivosServidor;
     private DefaultListModel<String> modelArchivosServidor;
     private JButton refrescarButton, descargarButton, abrirButton;
     private JTextArea logTextArea;
-    
-    // Panel de vista previa
     private JPanel previewPanel;
     private JLabel imagePreviewLabel;
     private JLabel infoPreviewLabel;
@@ -26,12 +27,12 @@ public class ClienteGUI extends JFrame {
         super("Explorador de Archivos Remotos");
         this.cliente = new Cliente();
 
+        // ... (El resto del constructor hasta 'configurarActionListeners' permanece igual)
         setSize(850, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
         setLocationRelativeTo(null);
 
-        // Panel de Conexión (Norte)
         JPanel panelConexion = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panelConexion.setBorder(new TitledBorder("Conexión"));
         hostTextField = new JTextField("localhost", 15);
@@ -44,24 +45,17 @@ public class ClienteGUI extends JFrame {
         panelConexion.add(desconectarButton);
         add(panelConexion, BorderLayout.NORTH);
 
-        // Panel Principal (Centro) con división
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         splitPane.setResizeWeight(0.4);
         add(splitPane, BorderLayout.CENTER);
 
-        // Panel Izquierdo: Lista de Archivos y Acciones
-                // --- Panel Izquierdo: Lista de Archivos y Acciones ---
         JPanel panelIzquierdo = new JPanel(new BorderLayout(10, 10));
         modelArchivosServidor = new DefaultListModel<>();
         listaArchivosServidor = new JList<>(modelArchivosServidor);
-        
-        // --- AJUSTES PARA LA VISTA EN CUADRÍCULA ---
-        listaArchivosServidor.setLayoutOrientation(JList.HORIZONTAL_WRAP); // 1. Organiza en filas
-        listaArchivosServidor.setVisibleRowCount(-1);                     // 2. Hace que las filas se ajusten al espacio
+        listaArchivosServidor.setLayoutOrientation(JList.HORIZONTAL_WRAP);
+        listaArchivosServidor.setVisibleRowCount(-1);
         listaArchivosServidor.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        
-        listaArchivosServidor.setCellRenderer(new FileCellRenderer());     // 3. Usa nuestro renderer actualizado
-        
+        listaArchivosServidor.setCellRenderer(new FileCellRenderer());
         JScrollPane scrollServidor = new JScrollPane(listaArchivosServidor);
         scrollServidor.setBorder(new TitledBorder("Archivos en el Servidor"));
         panelIzquierdo.add(scrollServidor, BorderLayout.CENTER);
@@ -76,14 +70,11 @@ public class ClienteGUI extends JFrame {
         panelIzquierdo.add(panelAcciones, BorderLayout.SOUTH);
         splitPane.setLeftComponent(panelIzquierdo);
 
-        // Panel Derecho: Vista Previa
         cardLayout = new CardLayout();
         previewPanel = new JPanel(cardLayout);
         previewPanel.setBorder(new TitledBorder("Vista Previa"));
-        
         infoPreviewLabel = new JLabel("Seleccione un archivo para ver detalles", SwingConstants.CENTER);
         previewPanel.add(infoPreviewLabel, "info");
-        
         imagePreviewLabel = new JLabel();
         imagePreviewLabel.setHorizontalAlignment(SwingConstants.CENTER);
         JScrollPane imageScrollPane = new JScrollPane(imagePreviewLabel);
@@ -104,6 +95,7 @@ public class ClienteGUI extends JFrame {
     }
 
     private void configurarActionListeners() {
+        // ... (Los listeners de los botones conectar, desconectar, refrescar, descargar y abrir permanecen igual)
         conectarButton.addActionListener(e -> {
             String host = hostTextField.getText().trim();
             if (host.isEmpty()) { log("Por favor, ingrese la dirección del host."); return; }
@@ -139,7 +131,6 @@ public class ClienteGUI extends JFrame {
             String nombreArchivo = archivoSeleccionado.split(" \\(")[0];
             
             new SwingWorker<Boolean, Void>() {
-                // CORRECCIÓN: Se añade "throws Exception" para manejar posibles errores de red.
                 @Override protected Boolean doInBackground() throws Exception {
                     log("Descargando: " + nombreArchivo + "...");
                     return cliente.descargarArchivo(nombreArchivo);
@@ -187,12 +178,31 @@ public class ClienteGUI extends JFrame {
                 }
             }.execute();
         });
-        
-        listaArchivosServidor.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                String archivoSeleccionado = listaArchivosServidor.getSelectedValue();
-                if (archivoSeleccionado != null) {
-                    actualizarPreview(archivoSeleccionado);
+
+        // 2. <<--- SE CAMBIA EL LISTENER PARA EVITAR LA DESCARGA AUTOMÁTICA
+        // Se reemplaza el ListSelectionListener por un MouseListener más específico
+        listaArchivosServidor.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                JList<String> list = (JList<String>) e.getSource();
+                
+                // Acción para un solo clic: seleccionar y mostrar información
+                if (e.getClickCount() == 1) {
+                    int index = list.locationToIndex(e.getPoint());
+                    if (index >= 0) {
+                        list.setSelectedIndex(index);
+                        String archivoSeleccionado = list.getModel().getElementAt(index);
+                        actualizarPreviewInfo(archivoSeleccionado);
+                    }
+                }
+                
+                // Acción para doble clic: previsualizar imagen
+                if (e.getClickCount() == 2) {
+                    int index = list.locationToIndex(e.getPoint());
+                    if (index >= 0) {
+                        String archivoSeleccionado = list.getModel().getElementAt(index);
+                        previsualizarImagen(archivoSeleccionado);
+                    }
                 }
             }
         });
@@ -200,7 +210,6 @@ public class ClienteGUI extends JFrame {
 
     private void refrescarListaArchivos() {
         new SwingWorker<List<String>, Void>() {
-            // CORRECCIÓN: Se añade "throws Exception" para manejar posibles errores de red.
             @Override protected List<String> doInBackground() throws Exception {
                 log("Solicitando lista de archivos...");
                 return cliente.listarArchivos();
@@ -216,21 +225,44 @@ public class ClienteGUI extends JFrame {
         }.execute();
     }
     
-    private void actualizarPreview(String archivoSeleccionado) {
+    // 3. <<--- SE AÑADEN MÉTODOS AUXILIARES PARA LA NUEVA LÓGICA DE CLICS
+    
+    // Este método solo muestra información, no descarga nada.
+    private void actualizarPreviewInfo(String archivoSeleccionado) {
         String nombreArchivo = archivoSeleccionado.split(" \\(")[0];
         String extension = getFileExtension(nombreArchivo);
         
+        String infoText = "<html><b>Archivo:</b> " + nombreArchivo + "<br><b>Tamaño:</b> " + archivoSeleccionado.split(" \\(")[1].replace(")", "") + "</html>";
+        
         if (extension.matches("png|jpg|jpeg|gif")) {
+            infoText += "<br><br><i>Doble clic para previsualizar.</i>";
+        }
+        
+        infoPreviewLabel.setText(infoText);
+        cardLayout.show(previewPanel, "info");
+    }
+    
+    // Este método se activa con doble clic para descargar y mostrar la imagen.
+    private void previsualizarImagen(String archivoSeleccionado) {
+        String nombreArchivo = archivoSeleccionado.split(" \\(")[0];
+        String extension = getFileExtension(nombreArchivo);
+
+        if (extension.matches("png|jpg|jpeg|gif")) {
+            log("Previsualizando imagen: " + nombreArchivo + "...");
             new SwingWorker<ImageIcon, Void>() {
                 @Override
                 protected ImageIcon doInBackground() throws Exception {
                     File archivoLocal = new File("descargas_cliente", nombreArchivo);
                     if (!archivoLocal.exists()) {
-                        cliente.descargarArchivo(nombreArchivo);
+                        log("Descargando imagen para la vista previa...");
+                        if (!cliente.descargarArchivo(nombreArchivo)) {
+                            // Aquí es donde se necesitaba el 'import java.io.IOException;'
+                            throw new IOException("No se pudo descargar la imagen.");
+                        }
                     }
                     Image img = ImageIO.read(archivoLocal);
-                    int previewWidth = previewPanel.getWidth() - 20;
-                    int previewHeight = previewPanel.getHeight() - 40;
+                    int previewWidth = Math.max(1, previewPanel.getWidth() - 20);
+                    int previewHeight = Math.max(1, previewPanel.getHeight() - 40);
                     Image scaledImg = img.getScaledInstance(previewWidth, previewHeight, Image.SCALE_SMOOTH);
                     return new ImageIcon(scaledImg);
                 }
@@ -241,14 +273,13 @@ public class ClienteGUI extends JFrame {
                         imagePreviewLabel.setIcon(get());
                         cardLayout.show(previewPanel, "image");
                     } catch (Exception e) {
-                        infoPreviewLabel.setText("<html>No se pudo cargar la vista previa de la imagen.<br>" + nombreArchivo + "</html>");
-                        cardLayout.show(previewPanel, "info");
+                        log("Error al cargar la vista previa: " + e.getMessage());
+                        actualizarPreviewInfo(archivoSeleccionado);
                     }
                 }
             }.execute();
         } else {
-            infoPreviewLabel.setText("<html><b>Archivo:</b> " + nombreArchivo + "<br><b>Tipo:</b> Documento " + extension.toUpperCase() + "</html>");
-            cardLayout.show(previewPanel, "info");
+            log("Doble clic en un archivo no compatible con la vista previa.");
         }
     }
     
